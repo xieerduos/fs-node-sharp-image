@@ -1,0 +1,16 @@
+{
+  "name": "fs-read-file",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "sharp": "^0.30.3",
+    "uuid": "^8.3.2"
+  }
+}
