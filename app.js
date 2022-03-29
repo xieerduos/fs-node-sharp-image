@@ -1,7 +1,14 @@
 const fs = require("fs");
 const path = require("path");
-const QueueManager = require("./QueueManager");
 const sharp = require("sharp");
+const QueueManager = require("./QueueManager");
+
+const mime = require("mime");
+
+// 兼容mac文件格式
+mime.define({ "image/jpeg": ["jfif"] });
+
+// 获取文件信息
 function getStatByFile(filename) {
     return new Promise((resolve, reject) => {
         fs.stat(filename, (err, stats) => {
@@ -13,7 +20,7 @@ function getStatByFile(filename) {
         });
     });
 }
-
+// 读取文件操作
 async function readFileHandler(filename, options = {}, callback) {
     const statData = options.statData;
     const highWaterMark = options.highWaterMark;
@@ -63,6 +70,7 @@ async function readFileHandler(filename, options = {}, callback) {
     });
 }
 
+// 模拟发送请求 上传文件块
 function netHandler({ readCurrentCount, statData, highWaterMark }) {
     return new Promise(async (resolve, reject) => {
         try {
@@ -94,37 +102,51 @@ function netHandler({ readCurrentCount, statData, highWaterMark }) {
 }
 
 async function main(filename) {
-    const queueInstance = new QueueManager(1);
-    const statData = await getStatByFile(filename);
+    try {
+        // 实例一个 队列管理对象
+        const queueInstance = new QueueManager(1);
+        // 获取文件信息
+        const statData = await getStatByFile(filename);
 
-    const highWaterMark = 64 * 1024;
+        // const fileType = mime.getType(filename);
 
-    const readTotalCount = Math.ceil(statData.size / highWaterMark);
+        // 每次读取 64 * 1024 KB
+        const highWaterMark = 64 * 1024;
 
-    let inputBuffer = [];
+        // 读取文件的次数
+        const readTotalCount = Math.ceil(statData.size / highWaterMark);
 
-    for (let index = 0; index < readTotalCount; index++) {
-        try {
-            const result = await queueInstance.push({
-                fetch: netHandler.bind(this, {
-                    readCurrentCount: index,
-                    statData,
-                    highWaterMark,
-                }),
-            });
+        // 合并文件buffer数组
+        let inputBuffer = [];
 
-            console.log(
-                "progress ",
-                result.readCurrentCount / result.readTotalCount
-            );
-            inputBuffer.push(result.data);
-        } catch (error) {
-            console.log("error :>> ", error);
-            break;
-        } finally {
+        for (let index = 0; index < readTotalCount; index++) {
+            try {
+                const result = await queueInstance.push({
+                    fetch: netHandler.bind(this, {
+                        readCurrentCount: index,
+                        statData,
+                        highWaterMark,
+                    }),
+                });
+
+                console.log(
+                    "progress ",
+                    result.readCurrentCount / result.readTotalCount
+                );
+                inputBuffer.push(result.data);
+            } catch (error) {
+                console.log("error :>> ", error);
+                break;
+            } finally {
+            }
         }
+        // sharp库 生成图片
+        await sharp(Buffer.concat(inputBuffer)).toFile(
+            `output${Date.now()}${path.extname(filename)}`
+        );
+    } catch (error) {
+        console.error("error :>> ", error);
     }
-    await sharp(Buffer.concat(inputBuffer)).toFile("output.png");
 }
 const filename = path.join("./", "input.png");
 
